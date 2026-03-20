@@ -2,7 +2,7 @@ from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
 
 import pyzed.sl as sl
-import cv2 
+import cv2
 import os
 
 
@@ -16,7 +16,7 @@ class CameraHandler:
         self.set_runtime_parameters()
 
     def init_camera_params(self) -> None:
-        
+
         # Init camera
         self.zed = sl.Camera()
 
@@ -24,7 +24,7 @@ class CameraHandler:
         self.init_params.coordinate_units = sl.UNIT.METER
         self.init_params.camera_resolution = sl.RESOLUTION.HD1080
         self.init_params.depth_mode = sl.DEPTH_MODE.NEURAL
-        self.init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Z_UP_X_FWD 
+        self.init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Z_UP_X_FWD
         self.init_params.depth_maximum_distance = 50
 
         status = self.zed.open(self.init_params)
@@ -40,7 +40,7 @@ class CameraHandler:
         current_dir = os.path.dirname(__file__)
         self.main_directory = os.path.dirname(current_dir)
 
-        self.onnx_model_path = os.path.join(self.main_directory,"models","yolo26n.onnx")
+        self.onnx_model_path = os.path.join(self.main_directory,"models","best.onnx")
         print("PATH IS:", self.onnx_model_path)
 
         # Enable object detection module
@@ -49,7 +49,7 @@ class CameraHandler:
         self.obj_param.detection_model = sl.OBJECT_DETECTION_MODEL.CUSTOM_YOLOLIKE_BOX_OBJECTS
         self.obj_param.custom_onnx_file = self.onnx_model_path
         self.obj_param.enable_tracking = True
-        self.obj_param.enable_segmentation = False 
+        self.obj_param.enable_segmentation = False
         status = self.zed.enable_object_detection(self.obj_param)
         if status != sl.ERROR_CODE.SUCCESS:
             #self.node.get_logger().info("Object Detection enable : %s. Exit program.",{repr(status)})
@@ -57,7 +57,7 @@ class CameraHandler:
             exit()
         #self.node.get_logger().info("Enabling Object Detection... DONE")
 
-        self.objects = sl.Objects() 
+        self.objects = sl.Objects()
 
 
     def enable_positional_tracking(self)-> None:
@@ -71,10 +71,10 @@ class CameraHandler:
 
 
     def set_runtime_parameters(self):
-    
+
         self.runtime_parameters = sl.RuntimeParameters()
         self.runtime_parameters.confidence_threshold = 50
-    
+
         self.detection_parameters_rt = sl.CustomObjectDetectionRuntimeParameters()
 
         self.props_dict = {
@@ -85,7 +85,7 @@ class CameraHandler:
         self.props_dict[1].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
         self.props_dict[1].detection_confidence_threshold = 40
         self.detection_parameters_rt.object_class_detection_properties = self.props_dict
-        # 
+        #
 
     def run_object_detection(self)-> None:
         self.image = sl.Mat()
@@ -102,26 +102,27 @@ class CameraHandler:
                 if(self.objects.is_new):
                     obj_array = self.objects.object_list
                     for new_object in obj_array:
-                        class_label = new_object.raw_label
-                        position = new_object.position
-                        dimensions =  new_object.dimensions
-                        
-                        b_box = new_object.bounding_box_2d
-                        cv2.rectangle(image_opencv,(int(b_box[0][0]), int(b_box[0][1])),(int(b_box[2][0]), int(b_box[2][1])),(0,0,255),2) # bgr
+                        if True:
+                            class_label = new_object.raw_label
+                            position = new_object.position
+                            dimensions =  new_object.dimensions
 
-                        #cv2.putText(image_opencv,
-                        #            str(class_label),
-                        #            (int(b_box[0][0])), #top left
-                        #            cv2.FONT_HERSHEY_DUPLEX,
-                        #            1,
-                        #            (255,0,0), # red
-                        #            2
-                        #            )
+                            b_box = new_object.bounding_box_2d
+                            cv2.rectangle(image_opencv,(int(b_box[0][0]), int(b_box[0][1])),(int(b_box[2][0]), int(b_box[2][1])),(0,0,255),2) # bgr
+
+                            cv2.putText(image_opencv,
+                                        str(new_object.raw_label),
+                                        (int(b_box[0][0]), int(b_box[0][1])), 
+                                        cv2.FONT_HERSHEY_DUPLEX,
+                                        1,
+                                        (255,0,0), 
+                                        2
+                                        )
             cv2.imshow("Zed2i stream", image_opencv)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
     print("Object detection stopped")
-                    
+
 
 
 
@@ -129,7 +130,7 @@ class CameraHandler:
 def main(args=None):
     camera_handler = CameraHandler()
     camera_handler.run_object_detection()
-    
+
 
 
 if __name__ == "__main__":
