@@ -1,13 +1,16 @@
 from rclpy.node import Node
 from ament_index_python.packages import get_package_share_path
 
-from object_msgs.msg import Buoy
-from object_msgs.msg import Boat
+from object_msgs.msg import Object
 from sensor_msgs.msg import Image
+
 
 import pyzed.sl as sl
 import cv2
 from cv_bridge import CvBridge
+
+from usv_object_detector.TransformHandler import TransformHandler
+
 
 class CameraHandler:
     def __init__(self,*, node : Node, enable_display : bool, model : str):
@@ -19,10 +22,10 @@ class CameraHandler:
         self.enable_object_detection()
         self.objects = []
         self.set_runtime_parameters()
+        self.transform_handler = TransformHandler(node=node)
         
-        self.buoy_publisher = self.node.create_publisher(Buoy, "selene/object_detector/buoy", 10)
-        self.boat_publisher = self.node.create_publisher(Boat, "selene/object_detector/boat", 10)
-        
+        self.object_publisher = self.node.create_publisher(Object, "selene/object_detector/object", 10)
+
         if(self.display_enabled):
             self.node.get_logger().info("Image publisher is activated")
             self.image_publisher= self.node.create_publisher(Image,"selene/object_detector/image",10)
@@ -55,7 +58,7 @@ class CameraHandler:
         self.node.get_logger().info("Camera initialized")
 
     def enable_object_detection(self) -> None:
-
+        
         self.model_path = get_package_share_path("usv_object_detector")/'models'/str(self.model)
 
         # Enable object detection module
@@ -98,13 +101,23 @@ class CameraHandler:
         self.props_dict[1].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
         self.props_dict[1].detection_confidence_threshold = 40
         self.detection_parameters_rt.object_class_detection_properties = self.props_dict
-        #
 
     def run_object_detection(self)-> None:
         self.image = sl.Mat()
         self.depth_map = sl.Mat()
         self.objects = sl.Objects()
         while self.zed.grab(self.runtime_parameters) <= sl.ERROR_CODE.SUCCESS :
+
+            zed_pose = sl.Pose()
+            if self.zed.grab(self.runtime_parameters) == sl.ERROR_CODE.SUCCESS:
+                py_orientation = sl.Orientation()
+                ox = zed_pose.get_orientation(py_orientation).get()[0]
+                oy = zed_pose.get_orientation(py_orientation).get()[1]
+                oz = zed_pose.get_orientation(py_orientation).get()[2]
+                ow = zed_pose.get_orientation(py_orientation).get()[3]
+                self.transform_handler.set_camera_orientation(qx=ox,qy=oy,qz=oz,qw=ow)
+
+
 
             status = self.zed.retrieve_custom_objects(self.objects, self.detection_parameters_rt)
             if status <= sl.ERROR_CODE.SUCCESS:
@@ -115,12 +128,14 @@ class CameraHandler:
                 if(self.objects.is_new):
                     obj_array = self.objects.object_list
                     for new_object in obj_array:
+                        # Transform the position
+                        pos = self.transform_handler.transform_to_usv_2D(x= new_object.position[0],y= new_object.position[1],z = new_object.position[2])
                         
                         self.publish_object(class_label=new_object.raw_label, 
-                                            pos_x=new_object.position[0],
-                                            pos_y=new_object.position[1],
-                                            pos_z=new_object.position[2]
-                                            )
+                            pos_x=float(pos[0]),
+                            pos_y=float(pos[1]),
+                            pos_z=float(pos[2])
+                        )
                         
                         b_box = new_object.bounding_box_2d
                         cv2.rectangle(image_opencv,(int(b_box[0][0]), int(b_box[0][1])),(int(b_box[2][0]), int(b_box[2][1])),(0,0,255),2) # bgr
@@ -129,32 +144,35 @@ class CameraHandler:
             if(self.display_enabled):
                 self.image_publisher.publish(self.bridge.cv2_to_imgmsg(image_opencv,"bgra8"))
 
-    def publish_object(self, *, class_label : int,  pos_x : float, pos_y : float, pos_z : float):
-        
+    def publish_object(self, *, class_label : int,  pos_x, pos_y , pos_z):
         match class_label:
             case self.GREEN_BUOY_ID:
-                buoy = Buoy()
+                buoy = Object()
+                buoy.type = "buoy"
                 buoy.color = "green"
-                buoy.x = pos_x; buoy.y = pos_y; buoy.z = pos_z;
-                self.buoy_publisher.publish(buoy)
+                buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
+                self.object_publisher.publish(buoy)
 
             case self.BOAT_ID:
-                boat = Boat()
+                boat = Object()
+                boat.type = "buoy"
                 boat.color = "unknown"
-                boat.pos_x = pos_x; boat.pos_y = pos_y; boat.pos_z = pos_z;
-                self.boat_publisher.publish(boat)
+                boat.position_x = pos_x; boat.position_y = pos_y; boat.position_z = pos_z;
+                self.object_publisher.publish(boat)
 
             case self.RED_BUOY_ID:
-                buoy = Buoy()
+                buoy = Object()
+                buoy.type = "buoy"
                 buoy.color = "red"
-                buoy.x = pos_x; buoy.y = pos_y; buoy.z = pos_z;
-                self.buoy_publisher.publish(buoy)
+                buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
+                self.object_publisher.publish(buoy)
 
             case self.YELLOW_BUOY_ID:
-                buoy = Buoy()
+                buoy = Object()
+                buoy.type = "buoy"
                 buoy.color = "yellow"
-                buoy.x = pos_x; buoy.y = pos_y; buoy.z = pos_z;
-                self.buoy_publisher.publish(buoy)
+                buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
+                self.object_publisher.publish(buoy)
 
 def main(args=None):
     camera_handler = CameraHandler(enable_display=False)
