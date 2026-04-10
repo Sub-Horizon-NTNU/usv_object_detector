@@ -4,14 +4,14 @@ This package uses the Zed SDK python API along with YOLO in order to detect buoy
 ## Setup
 It is recommended to create a virtual environment for installing the dependencies.
 ```console
-python3 -m venv venv_z 
+python -m venv venv_z 
 source venv_z/bin/activate
 ```
 Make sure the Zed SDK is installed, this is done by following the steps at: (https://www.stereolabs.com/docs/development/zed-sdk/linux)
 The Zed Python API can be installed after the Zed SDK is downloaded, to install the dependencies run the following commands:
 ```console 
-python -m pip install cython numpy opencv-python pyopengl catkin_pkg lark pyyaml requests
-python3 /usr/local/zed/get_python_api.py
+python -m pip install cython numpy opencv-python pyopengl catkin_pkg lark pyyaml requests empy==3.3.4
+python /usr/local/zed/get_python_api.py
 touch venv_z/COLCON_IGNORE
 ```
 
@@ -32,8 +32,6 @@ Export a model to onnx:
 ```console
 yolo export model=yolo12n.pt format=onnx simplify=True dynamic=False imgsz=608
 ```
-
-
 
 
 ### View vision system detections
