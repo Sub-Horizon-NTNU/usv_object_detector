@@ -141,7 +141,7 @@ class CameraHandler:
                 buoy = Object()
                 buoy.type = "static"
                 buoy.color = "green"
-                buoy.header.stamp = self.node.get_clock().now()
+                buoy.header.stamp = self.node.get_clock().now().to_msg()
                 buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
                 self.object_publisher.publish(buoy)
 
@@ -149,7 +149,7 @@ class CameraHandler:
                 boat = Object()
                 boat.type = "dynamic"
                 boat.color = "unknown"
-                boat.header.stamp = self.node.get_clock().now()         
+                boat.header.stamp = self.node.get_clock().now().to_msg()      
                 boat.position_x = pos_x; boat.position_y = pos_y; boat.position_z = pos_z;
                 self.object_publisher.publish(boat)
 
@@ -157,7 +157,7 @@ class CameraHandler:
                 buoy = Object()
                 buoy.type = "static"
                 buoy.color = "red"
-                buoy.header.stamp = self.node.get_clock().now()
+                buoy.header.stamp = self.node.get_clock().now().to_msg()
                 buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
                 self.object_publisher.publish(buoy)
 
@@ -165,7 +165,7 @@ class CameraHandler:
                 buoy = Object()
                 buoy.type = "static"
                 buoy.color = "yellow"
-                buoy.header.stamp = self.node.get_clock().now()
+                buoy.header.stamp = self.node.get_clock().now().to_msg()
                 buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
                 self.object_publisher.publish(buoy)
 
