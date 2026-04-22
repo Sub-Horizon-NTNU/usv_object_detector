@@ -9,7 +9,6 @@ import pyzed.sl as sl
 import cv2
 from cv_bridge import CvBridge
 
-from usv_object_detector.TransformHandler import TransformHandler
 
 
 class CameraHandler:
@@ -22,7 +21,6 @@ class CameraHandler:
         self.enable_object_detection()
         self.objects = []
         self.set_runtime_parameters()
-        self.transform_handler = TransformHandler(node=node)
         
         self.object_publisher = self.node.create_publisher(Object, "selene/object_detector/object", 10)
 
@@ -37,10 +35,8 @@ class CameraHandler:
         self.YELLOW_BUOY_ID = 3
 
     def init_camera_params(self) -> None:
-
         # Init camera
         self.zed = sl.Camera()
-
         self.init_params = sl.InitParameters()
         self.init_params.coordinate_units = sl.UNIT.METER
         self.init_params.camera_resolution = sl.RESOLUTION.HD1080
@@ -87,10 +83,8 @@ class CameraHandler:
 
 
     def set_runtime_parameters(self):
-
         self.runtime_parameters = sl.RuntimeParameters()
         self.runtime_parameters.confidence_threshold = 50
-
         self.detection_parameters_rt = sl.CustomObjectDetectionRuntimeParameters()
 
         self.props_dict = {
@@ -117,8 +111,6 @@ class CameraHandler:
                 ow = zed_pose.get_orientation(py_orientation).get()[3]
                 self.transform_handler.set_camera_orientation(qx=ox,qy=oy,qz=oz,qw=ow)
 
-
-
             status = self.zed.retrieve_custom_objects(self.objects, self.detection_parameters_rt)
             if status <= sl.ERROR_CODE.SUCCESS:
                 self.zed.retrieve_image(self.image, sl.VIEW.LEFT) # Retrieve left image
@@ -129,12 +121,11 @@ class CameraHandler:
                     obj_array = self.objects.object_list
                     for new_object in obj_array:
                         # Transform the position
-                        pos = self.transform_handler.transform_to_usv_2D(x= new_object.position[0],y= new_object.position[1],z = new_object.position[2])
                         
                         self.publish_object(class_label=new_object.raw_label, 
-                            pos_x=float(pos[0]),
-                            pos_y=float(pos[1]),
-                            pos_z=float(pos[2])
+                            pos_x=new_object.position[0],
+                            pos_y=new_object.position[1],
+                            pos_z=new_object.position[2]
                         )
                         
                         b_box = new_object.bounding_box_2d
@@ -148,28 +139,29 @@ class CameraHandler:
         match class_label:
             case self.GREEN_BUOY_ID:
                 buoy = Object()
-                buoy.type = "buoy"
+                buoy.type = "static"
                 buoy.color = "green"
+                #buoy.header.stamp = self.node.now()
                 buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
                 self.object_publisher.publish(buoy)
 
             case self.BOAT_ID:
                 boat = Object()
-                boat.type = "buoy"
+                boat.type = "dynamic"
                 boat.color = "unknown"
                 boat.position_x = pos_x; boat.position_y = pos_y; boat.position_z = pos_z;
                 self.object_publisher.publish(boat)
 
             case self.RED_BUOY_ID:
                 buoy = Object()
-                buoy.type = "buoy"
+                buoy.type = "static"
                 buoy.color = "red"
                 buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
                 self.object_publisher.publish(buoy)
 
             case self.YELLOW_BUOY_ID:
                 buoy = Object()
-                buoy.type = "buoy"
+                buoy.type = "static"
                 buoy.color = "yellow"
                 buoy.position_x = pos_x; buoy.position_y = pos_y; buoy.position_z = pos_z;
                 self.object_publisher.publish(buoy)
