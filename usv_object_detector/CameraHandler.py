@@ -1,15 +1,11 @@
 from rclpy.node import Node
 from ament_index_python.packages import get_package_share_path
-
 from object_msgs.msg import Object
 from sensor_msgs.msg import Image
-
 
 import pyzed.sl as sl
 import cv2
 from cv_bridge import CvBridge
-
-
 
 class CameraHandler:
     def __init__(self,*, node : Node, enable_display : bool, model : str):
@@ -17,7 +13,7 @@ class CameraHandler:
         self.model = model
         self.display_enabled = enable_display
         self.init_camera_params()
-        self.enable_positional_tracking()
+        #self.enable_positional_tracking()
         self.enable_object_detection()
         self.objects = []
         self.set_runtime_parameters()
@@ -54,7 +50,6 @@ class CameraHandler:
         self.node.get_logger().info("Camera initialized")
 
     def enable_object_detection(self) -> None:
-        
         self.model_path = get_package_share_path("usv_object_detector")/'models'/str(self.model)
 
         # Enable object detection module
@@ -80,6 +75,7 @@ class CameraHandler:
             self.zed.close()
             exit()
         self.node.get_logger().info("Enabling Positional Tracking... DONE")
+        
 
 
     def set_runtime_parameters(self):
@@ -88,29 +84,35 @@ class CameraHandler:
         self.detection_parameters_rt = sl.CustomObjectDetectionRuntimeParameters()
 
         self.props_dict = {
-            1: sl.CustomObjectDetectionProperties(),
+            self.GREEN_BUOY_ID: sl.CustomObjectDetectionProperties(),
+            self.BOAT_ID: sl.CustomObjectDetectionProperties(),
+            self.RED_BUOY_ID : sl.CustomObjectDetectionProperties(),
+            self.YELLOW_BUOY_ID : sl.CustomObjectDetectionProperties(),
         }
 
-        self.props_dict[1].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
-        self.props_dict[1].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
-        self.props_dict[1].detection_confidence_threshold = 40
+        self.props_dict[self.GREEN_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
+        self.props_dict[self.GREEN_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
+        self.props_dict[self.GREEN_BUOY_ID].detection_confidence_threshold = 40
+
+        self.props_dict[self.BOAT_ID].native_mapped_class = sl.OBJECT_SUBCLASS.BOAT
+        self.props_dict[self.BOAT_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.MEDIUM
+        self.props_dict[self.BOAT_ID].detection_confidence_threshold = 40
+
+        self.props_dict[self.RED_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
+        self.props_dict[self.RED_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
+        self.props_dict[self.RED_BUOY_ID].detection_confidence_threshold = 40
+
+        self.props_dict[self.YELLOW_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
+        self.props_dict[self.YELLOW_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
+        self.props_dict[self.YELLOW_BUOY_ID].detection_confidence_threshold = 40
+
         self.detection_parameters_rt.object_class_detection_properties = self.props_dict
 
     def run_object_detection(self)-> None:
         self.image = sl.Mat()
         self.depth_map = sl.Mat()
         self.objects = sl.Objects()
-        while self.zed.grab(self.runtime_parameters) <= sl.ERROR_CODE.SUCCESS :
-
-            zed_pose = sl.Pose()
-            if self.zed.grab(self.runtime_parameters) == sl.ERROR_CODE.SUCCESS:
-                py_orientation = sl.Orientation()
-                ox = zed_pose.get_orientation(py_orientation).get()[0]
-                oy = zed_pose.get_orientation(py_orientation).get()[1]
-                oz = zed_pose.get_orientation(py_orientation).get()[2]
-                ow = zed_pose.get_orientation(py_orientation).get()[3]
-                self.transform_handler.set_camera_orientation(qx=ox,qy=oy,qz=oz,qw=ow)
-
+        while self.zed.grab(self.runtime_parameters) <= sl.ERROR_CODE.SUCCESS:
             status = self.zed.retrieve_custom_objects(self.objects, self.detection_parameters_rt)
             if status <= sl.ERROR_CODE.SUCCESS:
                 self.zed.retrieve_image(self.image, sl.VIEW.LEFT) # Retrieve left image
@@ -120,9 +122,8 @@ class CameraHandler:
                 if(self.objects.is_new):
                     obj_array = self.objects.object_list
                     for new_object in obj_array:
-                        # Transform the position
-                        
-                        self.publish_object(class_label=new_object.raw_label, 
+                        self.publish_object(
+                            class_label=new_object.raw_label, 
                             pos_x=new_object.position[0],
                             pos_y=new_object.position[1],
                             pos_z=new_object.position[2]
