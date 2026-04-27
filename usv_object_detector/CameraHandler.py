@@ -9,11 +9,19 @@ from cv_bridge import CvBridge
 
 class CameraHandler:
     def __init__(self,*, node : Node, enable_display : bool, model : str):
+
+        self.GREEN_BUOY_ID  = 0
+        self.BOAT_ID        = 1
+        self.RED_BUOY_ID    = 2
+        self.YELLOW_BUOY_ID = 3
+    
+
+
         self.node = node
         self.model = model
         self.display_enabled = enable_display
         self.init_camera_params()
-        #self.enable_positional_tracking()
+        self.enable_positional_tracking()
         self.enable_object_detection()
         self.objects = []
         self.set_runtime_parameters()
@@ -25,13 +33,11 @@ class CameraHandler:
             self.image_publisher= self.node.create_publisher(Image,"selene/object_detector/image",10)
             self.bridge = CvBridge()
 
-        self.GREEN_BUOY_ID  = 0
-        self.BOAT_ID        = 1
-        self.RED_BUOY_ID    = 2
-        self.YELLOW_BUOY_ID = 3
-
+    
     def init_camera_params(self) -> None:
+
         # Init camera
+        self.node.get_logger().info("Initializing camera parameters")
         self.zed = sl.Camera()
         self.init_params = sl.InitParameters()
         self.init_params.coordinate_units = sl.UNIT.METER
@@ -40,10 +46,12 @@ class CameraHandler:
         self.init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Z_UP_X_FWD
         self.init_params.depth_maximum_distance = 50
 
+        self.node.get_logger().info("Opening camera")
+
         status = self.zed.open(self.init_params)
 
         if status != sl.ERROR_CODE.SUCCESS:
-            self.node.get_logger.error("Camera Open: %s. Exit program.",{repr(status)})
+            self.node.get_logger().error("Camera Open: %s. Exit program.",{repr(status)})
             exit()
 
         self.camera_configuration = self.zed.get_camera_information().camera_configuration
@@ -60,7 +68,7 @@ class CameraHandler:
         self.obj_param.enable_segmentation = False
         status = self.zed.enable_object_detection(self.obj_param)
         if status != sl.ERROR_CODE.SUCCESS:
-            self.node.get_logger().error("Object Detection enable : %s. Exit program.",{repr(status)})
+            #self.node.get_logger().error("Object Detection enable : %s. Exit program.",{repr(status)})
             self.zed.close()
             exit()
         self.node.get_logger().info("Enabling Object Detection... DONE")
@@ -87,7 +95,7 @@ class CameraHandler:
             self.GREEN_BUOY_ID: sl.CustomObjectDetectionProperties(),
             self.BOAT_ID: sl.CustomObjectDetectionProperties(),
             self.RED_BUOY_ID : sl.CustomObjectDetectionProperties(),
-            self.YELLOW_BUOY_ID : sl.CustomObjectDetectionProperties(),
+            self.YELLOW_BUOY_ID : sl.CustomObjectDetectionProperties()
         }
 
         self.props_dict[self.GREEN_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL

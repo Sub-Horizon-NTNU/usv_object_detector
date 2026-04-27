@@ -44,3 +44,27 @@ Then the image published to the topic **selene/object_detector/image** view usin
 ```console
 ros2 run rqt_image_view rqt_image_view                 
 ```
+
+
+### venv install scheme on jetson (tested):
+```console
+python3 -m venv venv
+source venv/bin/activate
+touch venv/COLCON_IGNORE
+
+pip install --upgrade pip setuptools wheel 
+pip install colcon-common-extensions
+pip install catkin_pkg empy==3.3.4 lark pyyaml packaging numpy==1.26.4 opencv-python-headless==4.9.0.80 requests pyopengl cython
+
+python /usr/local/zed/get_python_api.py
+
+```
+The zed sdk has probably upgraded numpy making it incompatible with opencv:
+
+```console
+pip install numpy==1.26.4 --force-reinstall
+``` 
+
+
+
+
