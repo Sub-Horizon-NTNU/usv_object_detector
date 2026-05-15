@@ -2,6 +2,7 @@ from rclpy.node import Node
 from ament_index_python.packages import get_package_share_path
 from object_msgs.msg import Object
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 
 import pyzed.sl as sl
 import cv2
@@ -14,9 +15,14 @@ class CameraHandler:
         self.BOAT_ID        = 1
         self.RED_BUOY_ID    = 2
         self.YELLOW_BUOY_ID = 3
+        
+        self.LABEL_NAMES = {
+        self.GREEN_BUOY_ID:  "Green Buoy",
+        self.BOAT_ID:        "Boat",
+        self.RED_BUOY_ID:    "Red Buoy",
+        self.YELLOW_BUOY_ID: "Yellow Buoy"
+    }
     
-
-
         self.node = node
         self.model = model
         self.display_enabled = enable_display
@@ -30,7 +36,7 @@ class CameraHandler:
 
         if(self.display_enabled):
             self.node.get_logger().info("Image publisher is activated")
-            self.image_publisher= self.node.create_publisher(Image,"selene/object_detector/image",10)
+            self.image_publisher= self.node.create_publisher(CompressedImage,"selene/object_detector/image/compressed",10)
             self.bridge = CvBridge()
 
     
@@ -41,10 +47,10 @@ class CameraHandler:
         self.zed = sl.Camera()
         self.init_params = sl.InitParameters()
         self.init_params.coordinate_units = sl.UNIT.METER
-        self.init_params.camera_resolution = sl.RESOLUTION.HD1080
+        self.init_params.camera_resolution = sl.RESOLUTION.HD720
         self.init_params.depth_mode = sl.DEPTH_MODE.NEURAL
         self.init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Z_UP_X_FWD
-        self.init_params.depth_maximum_distance = 50
+        self.init_params.depth_maximum_distance = 20
 
         self.node.get_logger().info("Opening camera")
 
@@ -88,7 +94,7 @@ class CameraHandler:
 
     def set_runtime_parameters(self):
         self.runtime_parameters = sl.RuntimeParameters()
-        self.runtime_parameters.confidence_threshold = 50
+        self.runtime_parameters.confidence_threshold = 40
         self.detection_parameters_rt = sl.CustomObjectDetectionRuntimeParameters()
 
         self.props_dict = {
@@ -98,21 +104,21 @@ class CameraHandler:
             self.YELLOW_BUOY_ID : sl.CustomObjectDetectionProperties()
         }
 
-        self.props_dict[self.GREEN_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
-        self.props_dict[self.GREEN_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
-        self.props_dict[self.GREEN_BUOY_ID].detection_confidence_threshold = 40
+        #self.props_dict[self.GREEN_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
+        #self.props_dict[self.GREEN_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
+        self.props_dict[self.GREEN_BUOY_ID].detection_confidence_threshold = 60
 
-        self.props_dict[self.BOAT_ID].native_mapped_class = sl.OBJECT_SUBCLASS.BOAT
-        self.props_dict[self.BOAT_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.MEDIUM
-        self.props_dict[self.BOAT_ID].detection_confidence_threshold = 40
+        #self.props_dict[self.BOAT_ID].native_mapped_class = sl.OBJECT_SUBCLASS.BOAT
+        #self.props_dict[self.BOAT_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.MEDIUM
+        self.props_dict[self.BOAT_ID].detection_confidence_threshold = 60
 
-        self.props_dict[self.RED_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
-        self.props_dict[self.RED_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
-        self.props_dict[self.RED_BUOY_ID].detection_confidence_threshold = 40
+        #self.props_dict[self.RED_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
+        #self.props_dict[self.RED_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
+        self.props_dict[self.RED_BUOY_ID].detection_confidence_threshold = 60
 
-        self.props_dict[self.YELLOW_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
-        self.props_dict[self.YELLOW_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
-        self.props_dict[self.YELLOW_BUOY_ID].detection_confidence_threshold = 40
+        #self.props_dict[self.YELLOW_BUOY_ID].native_mapped_class = sl.OBJECT_SUBCLASS.SPORTSBALL
+        #self.props_dict[self.YELLOW_BUOY_ID].object_acceleration_preset = sl.OBJECT_ACCELERATION_PRESET.LOW
+        self.props_dict[self.YELLOW_BUOY_ID].detection_confidence_threshold = 60
 
         self.detection_parameters_rt.object_class_detection_properties = self.props_dict
 
@@ -139,10 +145,19 @@ class CameraHandler:
                         
                         b_box = new_object.bounding_box_2d
                         cv2.rectangle(image_opencv,(int(b_box[0][0]), int(b_box[0][1])),(int(b_box[2][0]), int(b_box[2][1])),(0,0,255),2) # bgr
-                        cv2.putText(image_opencv, str(new_object.raw_label)+" ID: "+str(new_object.id),(int(b_box[0][0]), int(b_box[0][1])), cv2.FONT_HERSHEY_DUPLEX,1,(255,0,0),2)
-                        
-            if(self.display_enabled):
-                self.image_publisher.publish(self.bridge.cv2_to_imgmsg(image_opencv,"bgra8"))
+                        label_text = self.LABEL_NAMES.get(new_object.raw_label, "Unknown") + " ID:" + str(new_object.id) + " C:"+ str(round(new_object.confidence))
+                        cv2.putText(image_opencv, label_text ,(int(b_box[0][0]), int(b_box[0][1])), cv2.FONT_HERSHEY_DUPLEX,1,(255,0,0),2)
+                            
+                if(self.display_enabled):
+                    image_bgr = cv2.cvtColor(image_opencv, cv2.COLOR_BGRA2BGR)
+                    _, encoded = cv2.imencode('.jpg', image_bgr, [cv2.IMWRITE_JPEG_QUALITY, 50])
+            
+                
+                    msg = CompressedImage()
+                    msg.header.stamp = self.node.get_clock().now().to_msg()
+                    msg.format = "jpeg"
+                    msg.data = encoded.tobytes()
+                    self.image_publisher.publish(msg)
 
     def publish_object(self, *, class_label : int,  pos_x, pos_y , pos_z):
         match class_label:
